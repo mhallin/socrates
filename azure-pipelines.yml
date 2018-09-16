@@ -1,0 +1,21 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+resources:
+  containers:
+    - container: rust-1.29.0
+      image: rust:1.29.0-slim
+
+pool:
+  vmImage: 'Ubuntu 16.04'
+
+container: rust-1.29.0
+
+steps:
+- script: cd socrates-cli && cargo build
+  displayName: 'Build the CLI tool'
+
+- script: cd socrates-core && cargo test
+  displayName: 'Run unit tests for the core'
