@@ -25,7 +25,7 @@ use socrates_core::{TypeStorage, ToplevelCNFEmitter, DIMACSReceiver, GAFStorage,
 fn main() -> Result<(), Error> {
     env_logger::init();
 
-    if isatty::stdin_isatty() {
+    if isatty::stdout_isatty() {
         run_repl()
     }
     else {
