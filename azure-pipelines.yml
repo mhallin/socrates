@@ -3,28 +3,29 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-resources:
-  containers:
-    - container: rust-1.29.0
-      image: rust:1.29.0-slim
-
 jobs:
   - job: Linux
 
     pool:
       vmImage: 'Ubuntu 16.04'
 
-    container: rust-1.29.0
-
     steps:
-    - script: cargo build
-      displayName: Build all libraries and apps
+    - script: |
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+        # echo '##vso[task.setvariable variable=RUSTFLAGS;]-C link-dead-code'
 
-    - script: cargo test
-      displayName: Run all tests (debug mode)
+    - template: ci/steps.yml
 
-    - script: cargo test --release
-      displayName: Run all tests (release mode)
+    ## This + RUSTFLAGS enables code coverage testing, but it does not properly generate reports on VSTS yet it seems
+    # - script: |
+    #     sudo apt-get install -y cmake g++ pkg-config jq
+    #     sudo apt-get install -y libcurl4-openssl-dev libelf-dev libdw-dev binutils-dev libiberty-dev
+    #     cargo install cargo-kcov
+    #     cargo kcov --print-install-kcov-sh | sh
+    #     cargo kcov --all --no-clean-rebuild --verbose
+    #     find target/cov
+    #     echo '##vso[codecoverage.publish codecoveragetool=cobertura;summaryfile=$(System.DefaultWorkingDirectory)/target/cov/kcov-merged/cobertura.xml;]'
 
   - job: macOS
     pool:
@@ -34,17 +35,9 @@ jobs:
     - script: |
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-        export PATH=$PATH:carg
       displayName: Install Rust
 
-    - script: cargo build
-      displayName: Build all libraries and apps
-
-    - script: cargo test
-      displayName: Run all tests (debug mode)
-
-    - script: cargo test --release
-      displayName: Run all tests (release mode)
+    - template: ci/steps.yml
 
   - job: Windows
     pool:
@@ -57,11 +50,4 @@ jobs:
         echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
       displayName: Install Rust
 
-    - script: cargo build
-      displayName: Build all libraries and apps
-
-    - script: cargo test
-      displayName: Run all tests (debug mode)
-
-    - script: cargo test --release
-      displayName: Run all tests (release mode)
+    - template: ci/steps.yml

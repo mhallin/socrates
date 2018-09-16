@@ -1,0 +1,12 @@
+steps:
+  - script: cargo build
+    displayName: Build all libraries and apps (debug mode)
+
+  - script: cargo test
+    displayName: Run all tests (debug mode)
+
+  # - script: cargo build --release
+  #   displayName: Build all libraries and apps (release mode)
+
+  # - script: cargo test --release
+  #   displayName: Run all tests (release mode)
