@@ -8,14 +8,25 @@ resources:
     - container: rust-1.29.0
       image: rust:1.29.0-slim
 
-pool:
-  vmImage: 'Ubuntu 16.04'
+jobs:
+  - job: Linux
 
-container: rust-1.29.0
+    pool:
+      vmImage: 'Ubuntu 16.04'
 
-steps:
-- script: cd socrates-cli && cargo build
-  displayName: 'Build the CLI tool'
+    container: rust-1.29.0
 
-- script: cd socrates-core && cargo test
-  displayName: 'Run unit tests for the core'
+    steps:
+    - script: ./ci/build_and_test.sh
+      displayName: Build and test
+
+  - job: macOS
+    pool:
+      vmImage: xcode9-macos10.13
+
+    steps:
+    - script: curl https://sh.rustup.rs -sSf | sh
+      displayName: Install Rust
+
+    - script: ./ci/build_and_test.sh
+      displayName: Build and test
