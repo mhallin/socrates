@@ -1,0 +1,9 @@
+[package]
+name = "socrates-errors"
+version = "0.1.0"
+authors = ["Magnus Hallin <mhallin@fastmail.com>"]
+
+[dependencies]
+log = { version = "0.4", features = ["release_max_level_warn"] }
+failure = "0.1"
+colored = "1.6.1"

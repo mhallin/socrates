@@ -1,0 +1,198 @@
+use std::str::FromStr;
+use std::i64;
+
+use socrates_ast::Spanning;
+use socrates_ast::parsed::{
+    Term, Formula,
+    BinaryNumericOperator, BinaryRelationOperator,
+    BinaryLogicOperator, UnaryLogicOperator,
+    Quantifier,
+    Definition, TypeSpec,
+    DocumentItem,
+    IdentifierType,
+};
+use socrates_errors::ErrorContext;
+
+use parse_error::WrappedLalrpopError;
+
+grammar<'err>(errors: &'err mut ErrorContext<'input>);
+
+Sp<Rule>: Spanning<Rule> =
+    <start: @L> <inner: Rule> <end: @R> => Spanning { pos: (start, end), inner };
+
+pub Document: Vec<Spanning<DocumentItem<'input>>> = {
+    <err:!> ";" <rest:Document> => {
+        errors.push_error(WrappedLalrpopError(err.error));
+        rest
+    },
+    <first:Sp<Item>> ";" <rest:Document> => {
+        let mut rest = rest;
+        rest.insert(0, first);
+        rest
+    },
+    => vec![],
+}
+
+pub SingleDelimitedItem: Spanning<DocumentItem<'input>> = {
+    <Sp<Item>> ";" => <>
+}
+
+Item: DocumentItem<'input> = {
+    <Sp<Definition>> => DocumentItem::Definition(<>),
+    <Sp<Formula>> => DocumentItem::Formula(<>),
+    ":b" <b:Sp<Identifier>> <f:Sp<Formula>> => DocumentItem::BucketedFormula(b, f),
+}
+
+Definition: Definition<'input> = {
+    ":type" <TypeSpec> => Definition::Type(<>),
+    ":instances" <t:TypeSpec> <n:Sp<Identifier>> "{" <is:Sp<IdentList>> "}"
+        => Definition::Instances(t, n, is),
+    ":function" <t:TypeSpec> <n:Sp<Identifier>> "(" <args:Sp<TypeList>> ")"
+        => Definition::UninterpretedFunction(t, n, args),
+    ":predicate" <n:Sp<Identifier>> "(" <args:Sp<TypeList>> ")"
+        => Definition::Predicate(n, args),
+    ":numfunction" <n:Sp<Identifier>> "(" <args:Sp<TypeList>> ")"
+        => Definition::NumericFunction(n, args),
+    ":integertype" <n:Sp<Identifier>> "[" <l:Sp<Integer>> ".." <u:Sp<Integer>> "]"
+        => Definition::IntegerType(n, l, u),
+    ":bucket" <n:Sp<Identifier>> ":complete" <p:Sp<Identifier>>
+        => Definition::CompletionBucket(n, p),
+}
+
+TypeList: Vec<Spanning<TypeSpec<'input>>> = {
+    NonEmptyTypeList,
+    => vec![],
+}
+
+NonEmptyTypeList: Vec<Spanning<TypeSpec<'input>>> = {
+    <first:Sp<TypeSpec>> "," <rest:NonEmptyTypeList> => {
+        let mut rest = rest;
+        rest.insert(0, first);
+        rest
+    },
+    <Sp<TypeSpec>> => vec![<>],
+}
+
+TypeSpec: TypeSpec<'input> = {
+    <Sp<Identifier>> => TypeSpec { name: <>, args: None },
+    <name:Sp<Identifier>> "[" <args:Sp<NonEmptyTypeList>> "]" => TypeSpec { name, args: Some(args) },
+}
+
+Formula: Formula<'input> = {
+    <q:Sp<Quantifier>> <vars:Sp<NonemptyIdentList>> <arg:Sp<Formula1>> => Formula::Quantified(q, None, vars.map(|vars| vars.iter().map(|n| n.map(|n| (n, None))).collect()), Box::new(arg)),
+    <Formula1>,
+}
+
+Formula1: Formula<'input> = {
+    <lhs:Sp<Formula1>> <op:Sp<Formula1Op>> <rhs:Sp<Formula2>> => Formula::BinaryLogic(op, Box::new(lhs), Box::new(rhs)),
+    <Formula2>,
+}
+
+Formula2: Formula<'input> = {
+    <lhs:Sp<Formula2>> <op:Sp<Formula2Op>> <rhs:Sp<Formula3>> => Formula::BinaryLogic(op, Box::new(lhs), Box::new(rhs)),
+    <Formula3>
+}
+
+Formula3: Formula<'input> = {
+    <op:Sp<UnaryOp>> <arg:Sp<Formula3>> => Formula::UnaryLogic(op, Box::new(arg)),
+    <p:Sp<Identifier>> <args:Sp<Bracketed<ExprList>>> => Formula::Predicate(p, args),
+    <Constraint>,
+    <Bracketed<Formula>>,
+}
+
+Constraint: Formula<'input> = {
+    <lhs:Sp<Expr>> <op:Sp<BinRelOp>> <rhs:Sp<Expr>> => Formula::BinaryRelation(op, lhs, rhs),
+}
+
+Expr: Term<'input> = {
+    <lhs:Sp<Expr>> <op:Sp<ExprOp>> <rhs:Sp<Term>> => Term::BinaryNumeric(op, Box::new(lhs), Box::new(rhs)),
+    <Term>,
+}
+
+Term: Term<'input> = {
+    <lhs:Sp<Term>> <op:Sp<TermOp>> <rhs:Sp<Factor>> => Term::BinaryNumeric(op, Box::new(lhs), Box::new(rhs)),
+    <Factor>,
+}
+
+Factor: Term<'input> = {
+    Identifier => Term::Identifier(<>, IdentifierType::Unresolved),
+    <f:Sp<Identifier>> <args:Sp<Bracketed<ExprList>>> => Term::Function(f, args),
+    <Integer> => Term::Number(<>),
+}
+
+Integer: i64 = {
+    r"-?[1-9][0-9]*" => i64::from_str(<>).unwrap(),
+    r"0+" => 0,
+}
+
+Bracketed<Rule>: Rule = {
+    "(" <Rule> ")",
+    "[" <Rule> "]",
+    "{" <Rule> "}",
+}
+
+ExprList: Vec<Spanning<Term<'input>>> = {
+    <arg:Sp<Expr>> "," <rest:ExprList> => {
+        let mut rest = rest;
+        rest.insert(0, arg);
+        rest
+    },
+    <arg:Sp<Expr>> => vec![<>],
+    => vec![],
+}
+
+Identifier: &'input str = {
+    r"[a-zA-Z_][0-9a-zA-Z_-]*" => <>,
+}
+
+IdentList: Vec<Spanning<&'input str>> = {
+    <NonemptyIdentList>,
+    => vec![],
+}
+
+NonemptyIdentList: Vec<Spanning<&'input str>> = {
+    <ident:Sp<Identifier>> "," <rest:NonemptyIdentList> => {
+        let mut rest = rest;
+        rest.insert(0, ident);
+        rest
+    },
+    <ident:Sp<Identifier>> => vec![<>],
+}
+
+ExprOp: BinaryNumericOperator = {
+    "+" => BinaryNumericOperator::Addition,
+    "-" => BinaryNumericOperator::Subtraction,
+}
+
+TermOp: BinaryNumericOperator = {
+    "*" => BinaryNumericOperator::Multiplication,
+    "/" => BinaryNumericOperator::Division,
+}
+
+BinRelOp: BinaryRelationOperator = {
+    "==" => BinaryRelationOperator::Equality,
+    "!=" => BinaryRelationOperator::Inequality,
+    ">=" => BinaryRelationOperator::GreaterThanEqual,
+    "<=" => BinaryRelationOperator::LessThanEqual,
+    ">" => BinaryRelationOperator::GreaterThan,
+    "<" => BinaryRelationOperator::LessThan,
+}
+
+Formula1Op: BinaryLogicOperator = {
+    "<->" => BinaryLogicOperator::Equivalence,
+    "->" => BinaryLogicOperator::Implication,
+}
+
+Formula2Op: BinaryLogicOperator = {
+    "&" => BinaryLogicOperator::Conjunction,
+    "|" => BinaryLogicOperator::Disjunction,
+}
+
+UnaryOp: UnaryLogicOperator = {
+    "~" => UnaryLogicOperator::Negation,
+}
+
+Quantifier: Quantifier = {
+    "forall" => Quantifier::Universal,
+    "exists" => Quantifier::Existential,
+}

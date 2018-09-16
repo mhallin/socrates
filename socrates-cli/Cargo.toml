@@ -1,0 +1,17 @@
+[package]
+name = "socrates-cli"
+version = "0.1.0"
+authors = ["Magnus Hallin <mhallin@fastmail.com>"]
+
+[dependencies]
+socrates-ast = { path = "../socrates-ast" }
+socrates-errors = { path = "../socrates-errors" }
+socrates-core = { path = "../socrates-core" }
+socrates-parser = { path = "../socrates-parser" }
+
+env_logger = "0.5"
+rustyline = "1.0"
+isatty = "0.1"
+failure = "0.1"
+log = "0.4"
+fnv = "1.0"

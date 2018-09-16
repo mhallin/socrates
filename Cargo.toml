@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "socrates-ast",
+    "socrates-cli",
+    "socrates-core",
+    "socrates-errors",
+    "socrates-parser",
+]
