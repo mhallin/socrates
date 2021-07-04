@@ -43,7 +43,7 @@ pub struct TypeSpec<'i> {
 pub enum Definition<'i> {
     Type(TypeSpec<'i>),
     Instances(
-        TypeSpec<'i>,
+        Option<TypeSpec<'i>>,
         Spanning<&'i str>,
         Spanning<Vec<Spanning<&'i str>>>,
     ),

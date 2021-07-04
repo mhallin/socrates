@@ -74,8 +74,10 @@ Item: DocumentItem<'input> = {
 
 Definition: Definition<'input> = {
     ":type" <TypeSpec> => Definition::Type(<>),
+    ":instances" <n:Sp<Identifier>> "{" <is:Sp<IdentList>> "}"
+        => Definition::Instances(None, n, is),
     ":instances" <t:TypeSpec> <n:Sp<Identifier>> "{" <is:Sp<IdentList>> "}"
-        => Definition::Instances(t, n, is),
+        => Definition::Instances(Some(t), n, is),
     ":function" <t:TypeSpec> <n:Sp<Identifier>> "(" <args:Sp<TypeList>> ")"
         => Definition::UninterpretedFunction(t, n, args),
     ":predicate" <n:Sp<Identifier>> "(" <args:Sp<TypeList>> ")"

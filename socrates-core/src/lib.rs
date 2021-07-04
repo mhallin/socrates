@@ -1,4 +1,3 @@
-mod cnf;
 mod cnf_receiver;
 mod gaf;
 mod grounder;
@@ -10,7 +9,9 @@ mod type_inferencer;
 mod types;
 mod util;
 
-pub use cnf_receiver::DIMACSReceiver;
+pub mod cnf;
+
+pub use cnf_receiver::{DIMACSReceiver, CNFReceiver};
 pub use gaf::GAFStorage;
 pub use grounder::{Emitter, ToplevelCNFEmitter};
 pub use types::TypeStorage;
@@ -42,7 +43,7 @@ pub fn handle_item<'i, E: grounder::Emitter<'i>, S: ::std::hash::BuildHasher>(
         DocumentItem::Definition(Spanning {
             inner: Definition::Instances(super_type, name, instances),
             ..
-        }) => storage.add_interpreted_type(&name, &super_type, &instances, errors),
+        }) => storage.add_interpreted_type(&name, super_type.as_ref(), &instances, errors),
         DocumentItem::Definition(Spanning {
             inner: Definition::IntegerType(name, min, max),
             ..

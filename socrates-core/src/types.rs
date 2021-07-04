@@ -20,7 +20,7 @@ enum Type<'i> {
     },
     Interpreted {
         name: &'i str,
-        super_type: TypeRef,
+        super_type: Option<TypeRef>,
         instances: Vec<&'i str>,
     },
     Integer {
@@ -117,21 +117,23 @@ impl<'i> TypeStorage<'i> {
     pub fn add_interpreted_type(
         &mut self,
         name: &Spanning<&'i str>,
-        super_type: &TypeSpec<'i>,
+        super_type: Option<&TypeSpec<'i>>,
         instances: &[Spanning<&'i str>],
         errors: &mut ErrorContext<'i>,
     ) -> Result<(), Error> {
         let (super_type, instances) = errors.block_exec(|errors| {
-            let super_type = match self.type_name_lookup.get(&super_type.name.inner) {
-                Some(index) => Some(*index),
-                None => {
-                    errors.push_error_message(
-                        super_type.name.pos,
-                        format!("type {} not found", super_type.name.inner),
-                    );
-                    None
+            let super_type = super_type.map(|super_type| {
+                match self.type_name_lookup.get(&super_type.name.inner) {
+                    Some(index) => Some(*index),
+                    None => {
+                        errors.push_error_message(
+                            super_type.name.pos,
+                            format!("type {} not found", super_type.name.inner),
+                        );
+                        None
+                    }
                 }
-            };
+            });
 
             if self.type_name_lookup.get(&name.inner).is_some() {
                 errors.push_error_message(name.pos, format!("type {} already defined", name.inner));
@@ -156,7 +158,7 @@ impl<'i> TypeStorage<'i> {
                 .collect::<Result<Vec<_>, _>>();
 
             Ok((
-                super_type.ok_or_else(|| format_err!("Type error"))?,
+                super_type.map(|t| t.ok_or_else(|| format_err!("Type error"))),
                 instances.map_err(|_| format_err!("Type error"))?,
             ))
         })?;
@@ -167,16 +169,26 @@ impl<'i> TypeStorage<'i> {
         for instance in &instances {
             self.instances.insert(instance, index);
         }
-        self.subtypes
-            .entry(super_type)
-            .or_insert_with(Vec::new)
-            .push(index);
 
-        self.types.push(Type::Interpreted {
-            name: name.inner,
-            super_type,
-            instances,
-        });
+        if let Some(super_type) = super_type {
+            let super_type = super_type?;
+            self.subtypes
+                .entry(super_type)
+                .or_insert_with(Vec::new)
+                .push(index);
+
+            self.types.push(Type::Interpreted {
+                name: name.inner,
+                super_type: Some(super_type),
+                instances,
+            });
+        } else {
+            self.types.push(Type::Interpreted {
+                name: name.inner,
+                super_type: None,
+                instances,
+            });
+        }
 
         Ok(())
     }
@@ -454,9 +466,13 @@ impl<'i> TypeStorage<'i> {
         }
 
         match (&self.types[subtype.0], &self.types[supertype.0]) {
-            (Type::Interpreted { super_type, .. }, Type::Uninterpreted { .. }) => {
-                self.is_in_hierarchy(*super_type, supertype)
-            }
+            (
+                Type::Interpreted {
+                    super_type: Some(super_type),
+                    ..
+                },
+                Type::Uninterpreted { .. },
+            ) => self.is_in_hierarchy(*super_type, supertype),
             _ => false,
         }
     }
