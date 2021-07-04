@@ -13,7 +13,7 @@ use socrates_core::{
 fn main() -> Result<(), Error> {
     env_logger::init();
 
-    if isatty::stdout_isatty() {
+    if atty::is(atty::Stream::Stdout) {
         run_repl()
     } else {
         let mut stdin = stdin();

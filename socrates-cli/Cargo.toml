@@ -10,8 +10,8 @@ socrates-errors = { path = "../socrates-errors" }
 socrates-core = { path = "../socrates-core" }
 socrates-parser = { path = "../socrates-parser" }
 
-env_logger = "0.5"
-rustyline = "1.0"
-isatty = "0.1"
+env_logger = "0.8.4"
+rustyline = "8.2.0"
+atty = "0.2"
 log = "0.4"
 fnv = "1.0"
