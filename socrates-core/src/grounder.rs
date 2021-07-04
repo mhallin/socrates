@@ -2,10 +2,10 @@ use std::rc::Rc;
 
 use itertools::Itertools;
 
-use socrates_errors::eyre::Error;
 use socrates_ast::parsed::ActiveType;
 use socrates_ast::parsed::{BinaryRelationOperator, IdentifierType, Quantifier};
 use socrates_ast::simple::{Formula, Term};
+use socrates_errors::eyre::Error;
 
 use crate::cnf::CNFFormula;
 use crate::cnf_receiver::CNFReceiver;
@@ -191,15 +191,19 @@ impl<'i> BufferingCNFEmitter<'i> {
         formula: &Formula<'i>,
         types: &TypeStorage<'i>,
     ) -> Result<CNFFormula, Error> {
-        let mut clauses: CNFFormula = Default::default();
+        let mut clauses: Option<CNFFormula> = None;
         for assignment in variable_assignment_iter(&variables, types) {
             let new_scope = Scope::make_subscope(&self.current_scope, scope_index, assignment);
             self.with_pushed_scope(new_scope, |emitter| {
-                clauses.extend_disjunction(&emitter.emit(formula, types)?);
+                let formula = emitter.emit(formula, types)?;
+                match &mut clauses {
+                    Some(clauses) => clauses.extend_disjunction(&formula),
+                    None => clauses = Some(formula),
+                }
                 Ok(())
             })?;
         }
-        Ok(clauses)
+        Ok(clauses.unwrap_or_default())
     }
 
     fn construct_predicate(
