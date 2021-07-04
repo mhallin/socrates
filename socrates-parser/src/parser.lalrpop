@@ -10,6 +10,7 @@ use socrates_ast::parsed::{
     Definition, TypeSpec,
     DocumentItem,
     IdentifierType,
+    InteractiveItem, InteractiveCommand,
 };
 use socrates_errors::ErrorContext;
 
@@ -19,6 +20,24 @@ grammar<'err>(errors: &'err mut ErrorContext<'input>);
 
 Sp<Rule>: Spanning<Rule> =
     <start: @L> <inner: Rule> <end: @R> => Spanning { pos: (start, end), inner };
+
+pub InteractiveDocument: Vec<InteractiveItem<'input>> = {
+    <err:!> ";" <rest:InteractiveDocument> => {
+        errors.push_error(WrappedLalrpopError(err.error));
+        rest
+    },
+    <first:Sp<Interactive>> ";" <rest:InteractiveDocument> => {
+        let mut rest = rest;
+        rest.insert(0, InteractiveItem::Interactive(first));
+        rest
+    },
+    <first:Sp<Item>> ";" <rest:InteractiveDocument> => {
+        let mut rest = rest;
+        rest.insert(0, InteractiveItem::Item(Box::new(first)));
+        rest
+    },
+    => vec![],
+}
 
 pub Document: Vec<Spanning<DocumentItem<'input>>> = {
     <err:!> ";" <rest:Document> => {
@@ -33,8 +52,18 @@ pub Document: Vec<Spanning<DocumentItem<'input>>> = {
     => vec![],
 }
 
+pub SingleInteractiveItem: InteractiveItem<'input> = {
+    <item:Sp<Interactive>> => InteractiveItem::Interactive(item),
+    <item:Sp<Item>> ";" => InteractiveItem::Item(Box::new(item)),
+}
+
 pub SingleDelimitedItem: Spanning<DocumentItem<'input>> = {
     <Sp<Item>> ";" => <>
+}
+
+Interactive: InteractiveCommand<'input> = {
+    ":model" => InteractiveCommand::ShowModel,
+    ":prove" <f:Sp<Formula>> => InteractiveCommand::ProveFormula(Box::new(f)),
 }
 
 Item: DocumentItem<'input> = {

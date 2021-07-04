@@ -3,8 +3,9 @@ use std::io::{stdin, stdout, Read};
 
 use fnv::FnvHashMap;
 
+use socrates_ast::parsed::InteractiveItem;
 use socrates_errors::{eyre::Error, ErrorContext};
-use socrates_parser::{DocumentParser, SingleDelimitedItemParser, WrappedLalrpopError};
+use socrates_parser::{DocumentParser, SingleInteractiveItemParser, WrappedLalrpopError};
 
 use socrates_core::{
     handle_item, DIMACSReceiver, Emitter, GAFStorage, ToplevelCNFEmitter, TypeStorage,
@@ -69,12 +70,15 @@ fn run_repl() -> Result<(), Error> {
             Ok(line) => {
                 let line: &'static str = Box::leak(line.to_owned().into_boxed_str());
                 let mut errors = ErrorContext::new("<interactive>", &line);
-                match SingleDelimitedItemParser::new().parse(&mut errors, &line) {
-                    Ok(item) => {
-                        if !handle_item(&mut emitter, item, &mut storage, &mut errors, &mut buckets)
+                match SingleInteractiveItemParser::new().parse(&mut errors, &line) {
+                    Ok(InteractiveItem::Item(item)) => {
+                        if !handle_item(&mut emitter, *item, &mut storage, &mut errors, &mut buckets)
                         {
                             log::warn!("handle_item failed");
                         }
+                    }
+                    Ok(InteractiveItem::Interactive(item)) => {
+                        log::info!("Interactive item {:?}", item)
                     }
                     Err(e) => errors.push_error(WrappedLalrpopError(e)),
                 }

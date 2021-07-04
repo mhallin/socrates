@@ -15,6 +15,18 @@ pub enum ActiveType {
 }
 
 #[derive(Debug, Clone)]
+pub enum InteractiveItem<'i> {
+    Interactive(Spanning<InteractiveCommand<'i>>),
+    Item(Box<Spanning<DocumentItem<'i>>>),
+}
+
+#[derive(Debug, Clone)]
+pub enum InteractiveCommand<'i> {
+    ShowModel,
+    ProveFormula(Box<Spanning<Formula<'i>>>),
+}
+
+#[derive(Debug, Clone)]
 pub enum DocumentItem<'i> {
     Definition(Spanning<Definition<'i>>),
     Formula(Spanning<Formula<'i>>),
