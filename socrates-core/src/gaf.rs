@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use fnv::FnvHashMap;
@@ -36,6 +37,16 @@ impl<'i> GAFStorage<'i> {
         Default::default()
     }
 
+    pub fn with_gafs<F: FnOnce(&[(&GAF<'i>, GAFIndex)])>(&self, f: F) {
+        let inner = self.inner.borrow();
+        let items = inner
+            .gaf_lookup
+            .iter()
+            .map(|(g, i)| (g, *i))
+            .collect::<Vec<_>>();
+        f(&items);
+    }
+
     pub fn reify(&self, gaf: GAF<'i>) -> GAFIndex {
         let mut inner = self.inner.borrow_mut();
         let next_index = GAFIndex(inner.gaf_lookup.len() as u32);
@@ -68,4 +79,38 @@ impl<'i> GAF<'i> {
     pub fn new(name: &'i str, args: Vec<GroundTerm<'i>>) -> Self {
         GAF { name, args }
     }
+}
+
+impl<'i> fmt::Display for GroundTerm<'i> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GroundTerm::Named(name, args) => format_name_args(f, name, args),
+            GroundTerm::Number(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+impl<'i> fmt::Display for GAF<'i> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        format_name_args(f, self.name, &self.args)
+    }
+}
+
+fn format_name_args(f: &mut fmt::Formatter, name: &str, args: &[GroundTerm]) -> fmt::Result {
+    write!(f, "{}", name)?;
+
+    if args.is_empty() {
+        return Ok(());
+    }
+
+    write!(f, "(")?;
+    for (index, arg) in args.iter().enumerate() {
+        if index > 0 {
+            write!(f, ", ")?;
+        }
+
+        write!(f, "{}", arg)?;
+    }
+
+    write!(f, ")")
 }
