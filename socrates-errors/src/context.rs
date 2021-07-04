@@ -7,8 +7,8 @@ use ::{CompilerError, Error};
 
 #[derive(Debug)]
 pub struct ErrorContext<'input> {
-    errors: Vec<Box<CompilerError + 'input>>,
-    warnings: Vec<Box<CompilerError + 'input>>,
+    errors: Vec<Box<dyn CompilerError + 'input>>,
+    warnings: Vec<Box<dyn CompilerError + 'input>>,
     source: &'input str,
     line_starts: Vec<usize>,
     filename: &'input str,
@@ -148,8 +148,8 @@ impl<'input> ErrorContext<'input> {
 }
 
 fn find_line_starts(source: &str) -> Vec<usize> {
-    [0usize].into_iter()
-        .cloned()
+    [0usize].iter()
+        .copied()
         .chain(source.char_indices()
             .filter_map(|(index, ch)| if ch == '\n' { Some(index + 1) } else { None }))
         .collect()

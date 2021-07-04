@@ -26,11 +26,11 @@ pub enum Term<'i> {
     BinaryNumeric(BinaryNumericOperator, Box<Term<'i>>, Box<Term<'i>>),
 }
 
-impl<'i> Into<Term<'i>> for parsed::Term<'i> {
-    fn into(self) -> Term<'i> {
+impl<'i> From<parsed::Term<'i>> for Term<'i> {
+    fn from(val: parsed::Term<'i>) -> Self {
         use parsed::Term::*;
 
-        match self {
+        match val {
             Identifier(i, tr) => Term::Identifier(i, tr),
             Function(name, args) => Term::Function(name.inner, args.inner.into_iter().map(|n| n.inner.into()).collect()),
             Number(i) => Term::Number(i),
@@ -39,13 +39,13 @@ impl<'i> Into<Term<'i>> for parsed::Term<'i> {
     }
 }
 
-impl<'i> Into<Formula<'i>> for parsed::Formula<'i> {
-    fn into(self) -> Formula<'i> {
+impl<'i> From<parsed::Formula<'i>> for Formula<'i> {
+    fn from(val: parsed::Formula<'i>) -> Self {
         use parsed::Formula::*;
         use parsed::{UnaryLogicOperator, BinaryLogicOperator};
         use position::Spanning;
 
-        simplify(match self {
+        simplify(match val {
             Quantified(q, scope_idx, vars, f) => Formula::Quantified(
                 q.inner,
                 scope_idx.expect("ICE: Scope index not assigned"),

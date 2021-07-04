@@ -76,12 +76,12 @@ impl<'i, R: CNFReceiver> ToplevelCNFEmitter<'i, R> {
         sign: bool,
         name: &'i str,
         args: &[Term<'i>],
-        types: &TypeStorage<'i>,
+        _types: &TypeStorage<'i>,
     ) -> Result<(), Error>
     {
         let gaf = self.gaf_storage.reify(GAF::new(
             name,
-            args.into_iter()
+            args.iter()
                 .map(|t| ground_term(t, &self.gaf_storage, &self.current_scope))
                 .collect()
         ));
@@ -201,12 +201,12 @@ impl<'i> BufferingCNFEmitter<'i> {
         sign: bool,
         name: &'i str,
         args: &[Term<'i>],
-        types: &TypeStorage<'i>,
+        _types: &TypeStorage<'i>,
     ) -> Result<CNFFormula, Error>
     {
         let gaf = self.gaf_storage.reify(GAF::new(
             name,
-            args.into_iter()
+            args.iter()
                 .map(|t| ground_term(t, &self.gaf_storage, &self.current_scope))
                 .collect()
         ));
@@ -219,7 +219,7 @@ impl<'i> BufferingCNFEmitter<'i> {
         op: BinaryRelationOperator,
         lhs: &Term<'i>,
         rhs: &Term<'i>,
-        types: &TypeStorage<'i>,
+        _types: &TypeStorage<'i>,
     ) -> Result<CNFFormula, Error>
     {
         let lhs = ground_term(lhs, &self.gaf_storage, &self.current_scope);
@@ -279,7 +279,7 @@ fn ground_term<'i>(term: &Term<'i>, gafs: &GAFStorage<'i>, scope: &Option<Rc<Sco
     match term {
         Term::BinaryNumeric(_, _, _) => unimplemented!("BinaryNumeric grounding not implemented"),
         Term::Function(name, args) =>
-            GroundTerm::new_function(name, args.into_iter().map(|a| ground_term(a, gafs, scope)).collect()),
+            GroundTerm::new_function(name, args.iter().map(|a| ground_term(a, gafs, scope)).collect()),
         Term::Identifier(name, IdentifierType::Atom(_)) =>
             GroundTerm::new_ident(name),
         Term::Identifier(_, IdentifierType::Variable(s, v)) =>

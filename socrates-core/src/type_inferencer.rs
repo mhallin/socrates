@@ -1,15 +1,15 @@
-use std::sync::{Arc, atomic::AtomicUsize, atomic::Ordering, RwLock, RwLockWriteGuard};
-use std::{fmt, cmp, hash};
+use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc, RwLock, RwLockWriteGuard};
+use std::{cmp, fmt, hash};
 
-use fnv::{FnvHashSet, FnvHashMap};
+use fnv::{FnvHashMap, FnvHashSet};
 
-use socrates_ast::parsed::{TypeRef, ActiveType};
-use socrates_ast::{Spanning, Span};
-use socrates_ast::parsed::{Formula, Term, IdentifierType, MaybeTypedVariable};
+use printer::DisplayType;
+use scope::Scope;
+use socrates_ast::parsed::{ActiveType, TypeRef};
+use socrates_ast::parsed::{Formula, IdentifierType, MaybeTypedVariable, Term};
+use socrates_ast::{Span, Spanning};
 use socrates_errors::ErrorContext;
 use types::TypeStorage;
-use scope::Scope;
-use printer::DisplayType;
 
 type GeneratorScope<'i> = Scope<ScopeData<'i>>;
 
@@ -43,21 +43,26 @@ struct Constraint<'i> {
     rhs: ConstraintType,
 }
 
-pub fn type_check<'i>(mut f: Spanning<Formula<'i>>, types: &TypeStorage<'i>, errors: &mut ErrorContext<'i>) -> Spanning<Formula<'i>> {
+pub fn type_check<'i>(
+    mut f: Spanning<Formula<'i>>,
+    types: &TypeStorage<'i>,
+    errors: &mut ErrorContext<'i>,
+) -> Spanning<Formula<'i>> {
     let scope = Scope::new_toplevel(ScopeData::new());
     generate_formula_constraints(&f, types, &scope);
 
-    let mut constraints = scope.inner.constraints.write()
+    let mut constraints = scope
+        .inner
+        .constraints
+        .write()
         .expect("ICE: Multiple writers on to constraint storage");
 
-    let unification_error =
-        errors.block_exec(|errors| {
-            unify_generic_constraints(
-                &mut constraints,
-                types,
-                errors);
+    let unification_error = errors
+        .block_exec(|errors| {
+            unify_generic_constraints(&mut constraints, types, errors);
             Ok(())
-        }).is_err();
+        })
+        .is_err();
 
     if unification_error {
         return f;
@@ -65,29 +70,37 @@ pub fn type_check<'i>(mut f: Spanning<Formula<'i>>, types: &TypeStorage<'i>, err
 
     debug!(
         "Initial constraints: \n{}",
-        (*constraints).constraints.iter()
+        (*constraints)
+            .constraints
+            .iter()
             .map(|c| format!("    {}", DisplayType::new(c, types)))
             .collect::<Vec<_>>()
-            .join("\n"));
+            .join("\n")
+    );
 
     merge_variable_definitions(&mut constraints, types, errors);
     remove_redundant_generics(&mut constraints);
 
     debug!(
         "Reduced constraints: \n{}",
-        (*constraints).constraints.iter()
+        (*constraints)
+            .constraints
+            .iter()
             .map(|c| format!("    {}", DisplayType::new(c, types)))
             .collect::<Vec<_>>()
-            .join("\n"));
+            .join("\n")
+    );
 
     let variable_bounds = generate_variable_bounds(&constraints, types);
 
     debug!(
         "Variables bounds: \n{}",
-        variable_bounds.iter()
+        variable_bounds
+            .iter()
             .map(|((s, v), t)| format!("    {}:{} <- {}", s, v, DisplayType::new(t, types)))
             .collect::<Vec<_>>()
-            .join("\n"));
+            .join("\n")
+    );
 
     assign_quantifier_variables(&mut f, &variable_bounds);
 
@@ -102,8 +115,7 @@ fn generate_formula_constraints<'i>(
     use socrates_ast::parsed::Formula::*;
 
     match &f.inner {
-        Predicate(name, args) =>
-            generate_predicate_constraints(name, args, f.pos, types, scope),
+        Predicate(name, args) => generate_predicate_constraints(name, args, f.pos, types, scope),
         BinaryRelation(_, lhs, rhs) => {
             let upper_bound = scope.inner.get_new_generic_param();
             generate_term_constraints(lhs, &upper_bound, types, scope);
@@ -113,10 +125,8 @@ fn generate_formula_constraints<'i>(
             generate_formula_constraints(lhs, types, scope);
             generate_formula_constraints(rhs, types, scope);
         }
-        UnaryLogic(_, f) =>
-            generate_formula_constraints(f, types, scope),
-        Quantified(_, _, v, f) =>
-            generate_quantifier_constraints(&v, f, types, scope),
+        UnaryLogic(_, f) => generate_formula_constraints(f, types, scope),
+        Quantified(_, _, v, f) => generate_quantifier_constraints(&v, f, types, scope),
     }
 }
 
@@ -129,10 +139,12 @@ fn generate_term_constraints<'i>(
     use socrates_ast::parsed::Term::*;
 
     match &t.inner {
-        Identifier(name, ty) => 
-            generate_identifier_constraints(name, *ty, t.pos, upper_bound, scope),
-        Function(name, args) =>
-            generate_function_constraints(name, &args.inner, t.pos, upper_bound, types, scope),
+        Identifier(name, ty) => {
+            generate_identifier_constraints(name, *ty, t.pos, upper_bound, scope)
+        }
+        Function(name, args) => {
+            generate_function_constraints(name, &args.inner, t.pos, upper_bound, types, scope)
+        }
         BinaryNumeric(_, lhs, rhs) => {
             generate_term_constraints(lhs, upper_bound, types, scope);
             generate_term_constraints(rhs, upper_bound, types, scope);
@@ -149,7 +161,10 @@ fn generate_predicate_constraints<'i>(
     scope: &Arc<GeneratorScope<'i>>,
 ) {
     let predicate = types.get_predicate(name).expect("ICE: Predicate not found");
-    assert!(predicate.arg_types().len() == args.len(), "ICE: Predicate arg count mismatch");
+    assert!(
+        predicate.arg_types().len() == args.len(),
+        "ICE: Predicate arg count mismatch"
+    );
 
     let subscope = make_subscope(scope, predicate.generics(), span, types);
 
@@ -198,7 +213,10 @@ fn generate_function_constraints<'i>(
     scope: &Arc<GeneratorScope<'i>>,
 ) {
     let function = types.get_function(name).expect("ICE: Function not found");
-    assert!(function.arg_types().len() == args.len(), "ICE: Predicate arg count mismatch");
+    assert!(
+        function.arg_types().len() == args.len(),
+        "ICE: Predicate arg count mismatch"
+    );
 
     let subscope = make_subscope(scope, function.generics(), span, types);
 
@@ -209,16 +227,18 @@ fn generate_function_constraints<'i>(
 
     if let Some(return_type) = function.return_type() {
         let rhs = make_constraint_type_from_active(&subscope, return_type, span);
-        constraints_mut(&subscope).push(
-            ConstraintLHS::Type(upper_bound.clone()),
-            rhs,
-        );
+        constraints_mut(&subscope).push(ConstraintLHS::Type(upper_bound.clone()), rhs);
     }
 }
 
-fn constraints_mut<'a, 'i>(scope: &'a GeneratorScope<'i>) -> RwLockWriteGuard<'a, ConstraintStorage<'i>> {
-    scope.inner.constraints
-        .write().expect("ICE: Multiple writers on to constraint storage")
+fn constraints_mut<'a, 'i>(
+    scope: &'a GeneratorScope<'i>,
+) -> RwLockWriteGuard<'a, ConstraintStorage<'i>> {
+    scope
+        .inner
+        .constraints
+        .write()
+        .expect("ICE: Multiple writers on to constraint storage")
 }
 
 fn make_subscope<'i>(
@@ -226,36 +246,41 @@ fn make_subscope<'i>(
     declared_generics: &[(&'i str, Option<TypeRef>)],
     span: Span,
     types: &TypeStorage<'i>,
-) -> Arc<GeneratorScope<'i>>
-{
+) -> Arc<GeneratorScope<'i>> {
     let counter = &scope.inner.generics_counter;
-    let generics = declared_generics.iter()
+    let generics = declared_generics
+        .iter()
         .map(|(_, upper_bound)| {
             let t = ConstraintType::GenericParam(counter.fetch_add(1, Ordering::Relaxed));
             if let Some(upper_bound) = upper_bound {
-                constraints_mut(&scope)
-                    .push(
-                        ConstraintLHS::Type(t.clone()),
-                        make_constraint_type_from_ref(*upper_bound, span, types));
+                constraints_mut(&scope).push(
+                    ConstraintLHS::Type(t.clone()),
+                    make_constraint_type_from_ref(*upper_bound, span, types),
+                );
             }
             t
         })
         .collect();
-    Scope::make_subscope(scope, ScopeData {
-        generics_counter: scope.inner.generics_counter.clone(),
-        constraints: scope.inner.constraints.clone(),
-        generics,
-    })
+    Scope::make_subscope(
+        scope,
+        ScopeData {
+            generics_counter: scope.inner.generics_counter.clone(),
+            constraints: scope.inner.constraints.clone(),
+            generics,
+        },
+    )
 }
 
-fn make_constraint_type_from_ref<'i>(
+fn make_constraint_type_from_ref(
     type_ref: TypeRef,
     span: Span,
-    types: &TypeStorage<'i>,
+    types: &TypeStorage,
 ) -> ConstraintType {
     ConstraintType::Type(
         type_ref,
-        types.type_params(type_ref).iter()
+        types
+            .type_params(type_ref)
+            .iter()
             .map(|p| make_constraint_type_from_ref(*p, span, types))
             .collect(),
         span,
@@ -268,13 +293,18 @@ fn make_constraint_type_from_active<'i>(
     span: Span,
 ) -> ConstraintType {
     match active_type {
-        ActiveType::GenericParam { index } =>
-            scope.inner.generics.get(*index)
-                .expect("ICE: Generics not registered")
-                .clone(),
+        ActiveType::GenericParam { index } => scope
+            .inner
+            .generics
+            .get(*index)
+            .expect("ICE: Generics not registered")
+            .clone(),
         ActiveType::Ref { to, params } => ConstraintType::Type(
             *to,
-            params.iter().map(|p| make_constraint_type_from_active(scope, p, span)).collect(),
+            params
+                .iter()
+                .map(|p| make_constraint_type_from_active(scope, p, span))
+                .collect(),
             span,
         ),
     }
@@ -315,7 +345,11 @@ fn merge_variable_definitions<'i>(
 
         {
             let (c1, c2) = index_two_mut(&mut constraints, i1, i2);
-            trace!("Conflicts: {}, {}", DisplayType::new(c1, types), DisplayType::new(c2, types));
+            trace!(
+                "Conflicts: {}, {}",
+                DisplayType::new(c1, types),
+                DisplayType::new(c2, types)
+            );
             unify_types(&c1.rhs, &c2.rhs, &mut acc, types, errors);
         }
 
@@ -323,7 +357,10 @@ fn merge_variable_definitions<'i>(
             match result {
                 UnificationResult::Error => break,
                 UnificationResult::NewConstraint(constraint) => {
-                    trace!("  => Adding constraint {}", DisplayType::new(&constraint, types));
+                    trace!(
+                        "  => Adding constraint {}",
+                        DisplayType::new(&constraint, types)
+                    );
                     constraints.push(constraint);
                 }
                 UnificationResult::SubstituteGenerics(from, to) => {
@@ -336,23 +373,33 @@ fn merge_variable_definitions<'i>(
         match (c1_has_generics, c2_has_generics) {
             (true, true) => (),
             (true, false) => {
-                trace!("  => Removing constraint {}", DisplayType::new(&constraints[i2], types));
+                trace!(
+                    "  => Removing constraint {}",
+                    DisplayType::new(&constraints[i2], types)
+                );
                 constraints.remove(i2);
             }
             (false, true) => {
-                trace!("  => Removing constraint {}", DisplayType::new(&constraints[i1], types));
+                trace!(
+                    "  => Removing constraint {}",
+                    DisplayType::new(&constraints[i1], types)
+                );
                 constraints.remove(i1);
             }
             (false, false) => {
                 let c1_is_subtype = match (&constraints[i1].rhs, &constraints[i2].rhs) {
-                    (ConstraintType::Type(tr1, _, _), ConstraintType::Type(tr2, _, _)) =>
-                        types.is_in_hierarchy(*tr1, *tr2),
+                    (ConstraintType::Type(tr1, _, _), ConstraintType::Type(tr2, _, _)) => {
+                        types.is_in_hierarchy(*tr1, *tr2)
+                    }
                     _ => false,
                 };
 
                 let remove_idx = if c1_is_subtype { i2 } else { i1 };
 
-                trace!("  => Remove constraint {}", DisplayType::new(&constraints[remove_idx], types));
+                trace!(
+                    "  => Remove constraint {}",
+                    DisplayType::new(&constraints[remove_idx], types)
+                );
                 constraints.remove(remove_idx);
             }
         }
@@ -361,21 +408,21 @@ fn merge_variable_definitions<'i>(
         constraints = dedups.drain().collect();
         trace!(
             "New constraints: \n{}",
-            constraints.iter()
+            constraints
+                .iter()
                 .map(|c| format!("    {}", DisplayType::new(c, types)))
                 .collect::<Vec<_>>()
-                .join("\n"));
+                .join("\n")
+        );
     }
 
     cs.constraints = constraints.into_iter().collect();
 }
 
-fn substitute_generics<'i>(
-    constraints: &mut Vec<Constraint<'i>>,
-    from: usize,
-    to: usize,
-) {
-    constraints.iter_mut().for_each(|c| c.substitute_generics(from, to));
+fn substitute_generics(constraints: &mut Vec<Constraint>, from: usize, to: usize) {
+    constraints
+        .iter_mut()
+        .for_each(|c| c.substitute_generics(from, to));
     constraints.retain(|c| c.lhs != c.rhs);
 }
 
@@ -383,86 +430,96 @@ fn substitute_generics<'i>(
 enum UnificationResult<'i> {
     Error,
     SubstituteGenerics(usize, usize),
-    NewConstraint(Constraint<'i>)
+    NewConstraint(Constraint<'i>),
 }
 
+#[allow(clippy::suspicious_operation_groupings)] // Clippy has a false positive for the type-in-hierarchy tests below
 fn unify_types<'i>(
     lhs: &ConstraintType,
     rhs: &ConstraintType,
     acc: &mut FnvHashSet<UnificationResult>,
     types: &TypeStorage<'i>,
     errors: &mut ErrorContext<'i>,
-)
-{
+) {
     // println!("Unifying types {} and {}", DisplayType::new(lhs, types), DisplayType::new(rhs, types));
     match (lhs, rhs) {
         (ConstraintType::GenericParam(lhs), ConstraintType::GenericParam(rhs)) => {
             acc.insert(UnificationResult::SubstituteGenerics(*lhs, *rhs));
         }
         (lhs @ ConstraintType::GenericParam(_), rhs) => {
-            acc.insert(UnificationResult::NewConstraint(Constraint::new(lhs.clone(), rhs.clone())));
+            acc.insert(UnificationResult::NewConstraint(Constraint::new(
+                lhs.clone(),
+                rhs.clone(),
+            )));
         }
         (lhs, rhs @ ConstraintType::GenericParam(_)) => {
-            acc.insert(UnificationResult::NewConstraint(Constraint::new(rhs.clone(), lhs.clone())));
+            acc.insert(UnificationResult::NewConstraint(Constraint::new(
+                rhs.clone(),
+                lhs.clone(),
+            )));
         }
         (ConstraintType::Type(lhs, lhs_args, _), ConstraintType::Type(rhs, rhs_args, _)) => {
             if (types.is_integer_type(*lhs) && types.is_integer_type(*rhs))
-                || (types.is_interpreted_type(*lhs) && types.is_interpreted_type(*rhs)
-                    && (types.is_in_hierarchy(*lhs, *rhs) || types.is_in_hierarchy(*rhs, *lhs))) {
-                return;
-            }
-            else if types.is_uninterpreted_type(*lhs) && types.is_uninterpreted_type(*rhs) {
+                || (types.is_interpreted_type(*lhs)
+                    && types.is_interpreted_type(*rhs)
+                    && (types.is_in_hierarchy(*lhs, *rhs) || types.is_in_hierarchy(*rhs, *lhs)))
+            {
+                // Atomic types unify without further steps
+            } else if types.is_uninterpreted_type(*lhs) && types.is_uninterpreted_type(*rhs) {
                 assert_eq!(lhs_args.len(), rhs_args.len());
                 for (lhs, rhs) in lhs_args.iter().zip(rhs_args) {
                     unify_types(lhs, rhs, acc, types, errors);
                 }
-            }
-            else {
+            } else {
                 acc.insert(UnificationResult::Error);
             }
         }
     }
 }
 
-fn find_conflicting_identifier_constraints<'i>(
-    constraints: &[Constraint<'i>],
-) -> Option<(usize, usize)>
-{
+fn find_conflicting_identifier_constraints(constraints: &[Constraint]) -> Option<(usize, usize)> {
     let mut start_idx = 0;
     while constraints.len() >= 2 && start_idx <= constraints.len() - 2 {
         let (first_idx, first_var) = constraints[start_idx..]
             .iter()
             .enumerate()
             .filter_map(|(i, c)| match &c.lhs {
-                ConstraintLHS::Identifier(_, v @ IdentifierType::Variable(_, _), _)
-                    => Some((i, *v)),
-                _ => None
+                ConstraintLHS::Identifier(_, v @ IdentifierType::Variable(_, _), _) => {
+                    Some((i, *v))
+                }
+                _ => None,
             })
             .next()?;
 
         let first_idx = start_idx + first_idx;
         start_idx = first_idx + 1;
 
-        println!("Conflict: first_idx = {}, constraints.len() = {}", first_idx, constraints.len());
+        println!(
+            "Conflict: first_idx = {}, constraints.len() = {}",
+            first_idx,
+            constraints.len()
+        );
 
         if first_idx >= constraints.len() - 2 {
             println!("  => fail");
             continue;
         }
 
-        let second_idx =
-            match constraints[first_idx+1..]
-                .iter()
-                .position(|c| match &c.lhs {
-                    ConstraintLHS::Identifier(_, v, _) => *v == first_var,
-                    _ => false,
-                })
-            {
-                Some(second_idx) => second_idx,
-                None => continue,
-            };
+        let second_idx = match constraints[first_idx + 1..]
+            .iter()
+            .position(|c| match &c.lhs {
+                ConstraintLHS::Identifier(_, v, _) => *v == first_var,
+                _ => false,
+            }) {
+            Some(second_idx) => second_idx,
+            None => continue,
+        };
 
-        println!("  => second_idx = {}, first_idx + 1 + second_idx = {}", second_idx, first_idx + 1 + second_idx);
+        println!(
+            "  => second_idx = {}, first_idx + 1 + second_idx = {}",
+            second_idx,
+            first_idx + 1 + second_idx
+        );
 
         return Some((first_idx, first_idx + 1 + second_idx));
     }
@@ -476,9 +533,7 @@ fn index_two_mut<T>(l: &mut [T], i1: usize, i2: usize) -> (&mut T, &mut T) {
     (&mut first[i1], &mut rest[i2 - i1 - 1])
 }
 
-fn remove_redundant_generics<'i>(
-    constraints: &mut ConstraintStorage<'i>
-) {
+fn remove_redundant_generics(constraints: &mut ConstraintStorage) {
     while let Some((from, to)) = find_redundant_generics_constraint(constraints) {
         trace!("Substituting redundant generics: {} => {}", from, to);
         let mut cs = constraints.constraints.drain().collect();
@@ -487,20 +542,24 @@ fn remove_redundant_generics<'i>(
     }
 }
 
-fn find_redundant_generics_constraint<'i>(constraints: &ConstraintStorage<'i>) -> Option<(usize, usize)> {
-    constraints.constraints.iter()
+fn find_redundant_generics_constraint(constraints: &ConstraintStorage) -> Option<(usize, usize)> {
+    constraints
+        .constraints
+        .iter()
         .filter_map(|c| match (&c.lhs, &c.rhs) {
-            (ConstraintLHS::Type(ConstraintType::GenericParam(lhs)), ConstraintType::GenericParam(rhs)) => Some((*rhs, *lhs)),
-            _ => None
+            (
+                ConstraintLHS::Type(ConstraintType::GenericParam(lhs)),
+                ConstraintType::GenericParam(rhs),
+            ) => Some((*rhs, *lhs)),
+            _ => None,
         })
         .next()
 }
 
 fn generate_variable_bounds<'i>(
     constraints: &ConstraintStorage<'i>,
-    types: &TypeStorage<'i>
-) -> FnvHashMap<(u32, u32), ActiveType>
-{
+    types: &TypeStorage<'i>,
+) -> FnvHashMap<(u32, u32), ActiveType> {
     constraints
         .constraints_for_variables_iter()
         .map(|(v, rhs)| (v, find_lower_bound(rhs, constraints, types).make_active()))
@@ -513,46 +572,56 @@ fn find_lower_bound<'i>(
     types: &TypeStorage<'i>,
 ) -> ConstraintType {
     match ty {
-        ConstraintType::GenericParam(p) => {
-            constraints
-                .constraints_for_generic_param(*p)
-                .fold(None as Option<&ConstraintType>, |lower_bound, rhs|
-                    match (lower_bound, rhs) {
-                        (None, rhs) => Some(rhs),
-                        (Some(ConstraintType::Type(lhs_tr, _, _)), ConstraintType::Type(rhs_tr, _, _)) =>
-                            if types.is_in_hierarchy(*rhs_tr, *lhs_tr) {
-                                Some(rhs)
-                            }
-                            else {
-                                lower_bound
-                            }
-                        _ => lower_bound,
-                    })
-                .expect("ICE: Could not find lower bound for generic param")
-                .clone()
-        }
-        ConstraintType::Type(_, _, _) => ty.clone()
+        ConstraintType::GenericParam(p) => constraints
+            .constraints_for_generic_param(*p)
+            .fold(None as Option<&ConstraintType>, |lower_bound, rhs| {
+                match (lower_bound, rhs) {
+                    (None, rhs) => Some(rhs),
+                    (
+                        Some(ConstraintType::Type(lhs_tr, _, _)),
+                        ConstraintType::Type(rhs_tr, _, _),
+                    ) => {
+                        if types.is_in_hierarchy(*rhs_tr, *lhs_tr) {
+                            Some(rhs)
+                        } else {
+                            lower_bound
+                        }
+                    }
+                    _ => lower_bound,
+                }
+            })
+            .expect("ICE: Could not find lower bound for generic param")
+            .clone(),
+        ConstraintType::Type(_, _, _) => ty.clone(),
     }
 }
 
-fn assign_quantifier_variables(f: &mut Spanning<Formula>, bounds: &FnvHashMap<(u32, u32), ActiveType>) {
+fn assign_quantifier_variables(
+    f: &mut Spanning<Formula>,
+    bounds: &FnvHashMap<(u32, u32), ActiveType>,
+) {
     match &mut f.inner {
         Formula::BinaryLogic(_, ref mut lhs, ref mut rhs) => {
             assign_quantifier_variables(lhs, bounds);
             assign_quantifier_variables(rhs, bounds);
-        },
+        }
         Formula::UnaryLogic(_, ref mut v) => {
             assign_quantifier_variables(v, bounds);
-        },
+        }
         Formula::Quantified(_, s, v, ref mut f) => {
             let s = s.expect("ICE: Quantifier has not been assigned a scope index");
             for (i, Spanning { inner: (_, t), .. }) in v.inner.iter_mut().enumerate() {
-                *t = Some(bounds.get(&(s, i as u32)).expect("ICE: Variable bound not assigned").clone());
+                *t = Some(
+                    bounds
+                        .get(&(s, i as u32))
+                        .expect("ICE: Variable bound not assigned")
+                        .clone(),
+                );
             }
 
             assign_quantifier_variables(f, bounds);
-        },
-        Formula::BinaryRelation { .. } | Formula::Predicate { .. } => ()
+        }
+        Formula::BinaryRelation { .. } | Formula::Predicate { .. } => (),
     }
 }
 
@@ -566,9 +635,7 @@ impl<'i> ScopeData<'i> {
     }
 
     fn get_new_generic_param(&self) -> ConstraintType {
-        ConstraintType::GenericParam(
-            self.generics_counter.fetch_add(1, Ordering::Relaxed)
-        )
+        ConstraintType::GenericParam(self.generics_counter.fetch_add(1, Ordering::Relaxed))
     }
 }
 
@@ -584,61 +651,68 @@ impl<'i> ConstraintStorage<'i> {
             let c = Constraint { lhs, rhs };
             trace!("Adding constraint: {:?}", c);
             self.constraints.insert(c);
-        }
-        else {
+        } else {
             trace!("Ignoring constraint for identical sides: {:?}", lhs);
         }
     }
 
-    fn constraints_for_variables_iter(&self) -> impl Iterator<Item=((u32, u32), &ConstraintType)> {
-        self.constraints
-            .iter()
-            .filter_map(|c| match &c.lhs {
-                ConstraintLHS::Identifier(_, IdentifierType::Variable(s, v), _) =>
-                    Some(((*s, *v), &c.rhs)),
-                _ => None,
-            })
+    fn constraints_for_variables_iter(
+        &self,
+    ) -> impl Iterator<Item = ((u32, u32), &ConstraintType)> {
+        self.constraints.iter().filter_map(|c| match &c.lhs {
+            ConstraintLHS::Identifier(_, IdentifierType::Variable(s, v), _) => {
+                Some(((*s, *v), &c.rhs))
+            }
+            _ => None,
+        })
     }
 
-    fn constraints_for_generic_param(&self, param: usize) -> impl Iterator<Item=&ConstraintType> {
-        self.constraints
-            .iter()
-            .filter_map(move |c| match &c.lhs {
-                ConstraintLHS::Type(ConstraintType::GenericParam(p)) if *p == param =>
-                    Some(&c.rhs),
-                _ => None,
-            })
+    fn constraints_for_generic_param(&self, param: usize) -> impl Iterator<Item = &ConstraintType> {
+        self.constraints.iter().filter_map(move |c| match &c.lhs {
+            ConstraintLHS::Type(ConstraintType::GenericParam(p)) if *p == param => Some(&c.rhs),
+            _ => None,
+        })
     }
 }
 
 impl<'i> Constraint<'i> {
     fn new<L: Into<ConstraintLHS<'i>>>(lhs: L, rhs: ConstraintType) -> Self {
-        Constraint { lhs: lhs.into(), rhs }
+        Constraint {
+            lhs: lhs.into(),
+            rhs,
+        }
     }
 
-    fn unify_generics(&self, destination: &mut FnvHashSet<Constraint<'i>>, types: &TypeStorage<'i>, errors: &mut ErrorContext<'i>) -> bool {
+    fn unify_generics(
+        &self,
+        destination: &mut FnvHashSet<Constraint<'i>>,
+        types: &TypeStorage<'i>,
+        errors: &mut ErrorContext<'i>,
+    ) -> bool {
         match (&self.lhs, &self.rhs) {
             (
                 ConstraintLHS::Type(ConstraintType::Type(lhs_tr, lhs_params, lhs_span)),
                 ConstraintType::Type(rhs_tr, rhs_params, _rhs_span),
-            ) =>
-                match (lhs_params.len(), rhs_params.len()) {
-                    (0, 0) => false,
-                    (x, y) if x != y || lhs_tr != rhs_tr => {
-                        errors.push_error_message(
-                            *lhs_span,
-                            format!("Types {} and {} are not compatible",
-                                DisplayType::new(&self.lhs, types),
-                                DisplayType::new(&self.rhs, types)));
-                        true
+            ) => match (lhs_params.len(), rhs_params.len()) {
+                (0, 0) => false,
+                (x, y) if x != y || lhs_tr != rhs_tr => {
+                    errors.push_error_message(
+                        *lhs_span,
+                        format!(
+                            "Types {} and {} are not compatible",
+                            DisplayType::new(&self.lhs, types),
+                            DisplayType::new(&self.rhs, types)
+                        ),
+                    );
+                    true
+                }
+                _ => {
+                    for (lhs, rhs) in lhs_params.iter().zip(rhs_params) {
+                        destination.insert(Constraint::new(lhs.clone(), rhs.clone()));
                     }
-                    _ => {
-                        for (lhs, rhs) in lhs_params.iter().zip(rhs_params) {
-                            destination.insert(Constraint::new(lhs.clone(), rhs.clone()));
-                        }
-                        true
-                    }
-            }
+                    true
+                }
+            },
             _ => false,
         }
     }
@@ -652,14 +726,16 @@ impl<'i> Constraint<'i> {
 impl ConstraintType {
     fn substitute_generics(&mut self, from: usize, to: usize) {
         match self {
-            ConstraintType::GenericParam(p) =>
+            ConstraintType::GenericParam(p) => {
                 if *p == from {
                     *p = to
-                },
-            ConstraintType::Type(_, params, _) =>
+                }
+            }
+            ConstraintType::Type(_, params, _) => {
                 for param in params {
                     param.substitute_generics(from, to);
-                },
+                }
+            }
         }
     }
 
@@ -669,14 +745,16 @@ impl ConstraintType {
             ConstraintType::Type(tr, params, _) => ActiveType::Ref {
                 to: *tr,
                 params: params.iter().map(|ct| ct.make_active()).collect(),
-            }
+            },
         }
     }
 
     fn contains_generics(&self) -> bool {
         match self {
             ConstraintType::GenericParam(_) => true,
-            ConstraintType::Type(_, params, _) => params.iter().any(ConstraintType::contains_generics)
+            ConstraintType::Type(_, params, _) => {
+                params.iter().any(ConstraintType::contains_generics)
+            }
         }
     }
 }
@@ -690,9 +768,9 @@ impl<'i> ConstraintLHS<'i> {
     }
 }
 
-impl<'i> Into<ConstraintLHS<'i>> for ConstraintType {
-    fn into(self) -> ConstraintLHS<'i> {
-        ConstraintLHS::Type(self)
+impl<'i> From<ConstraintType> for ConstraintLHS<'i> {
+    fn from(val: ConstraintType) -> Self {
+        ConstraintLHS::Type(val)
     }
 }
 
@@ -706,16 +784,17 @@ impl<'i> fmt::Display for DisplayType<'i, ConstraintType> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.ty {
             ConstraintType::GenericParam(i) => write!(f, "${}", i),
-            ConstraintType::Type(tr, p, _) => 
+            ConstraintType::Type(tr, p, _) => {
                 if p.is_empty() {
                     write!(f, "{}", self.display(tr))
-                }
-                else {
-                    let params = p.iter()
+                } else {
+                    let params = p
+                        .iter()
                         .map(|p| format!("{}", self.display(p)))
                         .collect::<Vec<_>>();
                     write!(f, "{}[{}]", self.display(tr), params.join(", "))
                 }
+            }
         }
     }
 }
@@ -723,12 +802,15 @@ impl<'i> fmt::Display for DisplayType<'i, ConstraintType> {
 impl<'i> fmt::Display for DisplayType<'i, ConstraintLHS<'i>> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.ty {
-            ConstraintLHS::Identifier(name, IdentifierType::Unresolved, _)
-                => write!(f, "?{}", name),
-            ConstraintLHS::Identifier(name, IdentifierType::Atom(tr), _)
-                => write!(f, "{}({})", name, self.display(tr)),
-            ConstraintLHS::Identifier(name, IdentifierType::Variable(scope, idx), _)
-                => write!(f, "{}@{}:{}", name, scope, idx),
+            ConstraintLHS::Identifier(name, IdentifierType::Unresolved, _) => {
+                write!(f, "?{}", name)
+            }
+            ConstraintLHS::Identifier(name, IdentifierType::Atom(tr), _) => {
+                write!(f, "{}({})", name, self.display(tr))
+            }
+            ConstraintLHS::Identifier(name, IdentifierType::Variable(scope, idx), _) => {
+                write!(f, "{}@{}:{}", name, scope, idx)
+            }
             ConstraintLHS::Type(ty) => self.display(ty).fmt(f),
         }
     }
@@ -736,7 +818,12 @@ impl<'i> fmt::Display for DisplayType<'i, ConstraintLHS<'i>> {
 
 impl<'i> fmt::Display for DisplayType<'i, Constraint<'i>> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} <= {}", self.display(&self.ty.lhs), self.display(&self.ty.rhs))
+        write!(
+            f,
+            "{} <= {}",
+            self.display(&self.ty.lhs),
+            self.display(&self.ty.rhs)
+        )
     }
 }
 
@@ -744,16 +831,14 @@ impl fmt::Debug for ConstraintType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ConstraintType::GenericParam(i) => write!(f, "$_T{}", i),
-            ConstraintType::Type(tr, p, _) => 
+            ConstraintType::Type(tr, p, _) => {
                 if p.is_empty() {
                     write!(f, "{:?}", tr)
-                }
-                else {
-                    let params = p.iter()
-                        .map(|p| format!("{:?}", p))
-                        .collect::<Vec<_>>();
+                } else {
+                    let params = p.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>();
                     write!(f, "{:?}({})", tr, params.join(", "))
                 }
+            }
         }
     }
 }
@@ -761,12 +846,15 @@ impl fmt::Debug for ConstraintType {
 impl<'i> fmt::Debug for ConstraintLHS<'i> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ConstraintLHS::Identifier(name, IdentifierType::Unresolved, _)
-                => write!(f, "({:?}, ???)", name),
-            ConstraintLHS::Identifier(name, IdentifierType::Atom(tr), _)
-                => write!(f, "({:?}, atom {:?})", name, tr),
-            ConstraintLHS::Identifier(name, IdentifierType::Variable(scope, idx), _)
-                => write!(f, "({:?}, variable {}:{})", name, scope, idx),
+            ConstraintLHS::Identifier(name, IdentifierType::Unresolved, _) => {
+                write!(f, "({:?}, ???)", name)
+            }
+            ConstraintLHS::Identifier(name, IdentifierType::Atom(tr), _) => {
+                write!(f, "({:?}, atom {:?})", name, tr)
+            }
+            ConstraintLHS::Identifier(name, IdentifierType::Variable(scope, idx), _) => {
+                write!(f, "({:?}, variable {}:{})", name, scope, idx)
+            }
             ConstraintLHS::Type(ty) => ty.fmt(f),
         }
     }
@@ -783,8 +871,9 @@ impl cmp::PartialEq for ConstraintType {
         use self::ConstraintType::*;
         match (self, other) {
             (GenericParam(lhs), GenericParam(rhs)) => lhs == rhs,
-            (Type(lhs_tr, lhs_params, _), Type(rhs_tr, rhs_params, _)) =>
-                lhs_tr == rhs_tr && lhs_params == rhs_params,
+            (Type(lhs_tr, lhs_params, _), Type(rhs_tr, rhs_params, _)) => {
+                lhs_tr == rhs_tr && lhs_params == rhs_params
+            }
             (GenericParam(_), _) | (_, GenericParam(_)) => false,
         }
     }
@@ -796,8 +885,9 @@ impl<'i> cmp::PartialEq for ConstraintLHS<'i> {
     fn eq(&self, other: &Self) -> bool {
         use self::ConstraintLHS::*;
         match (self, other) {
-            (Identifier(lhs_name, lhs_ty, _), Identifier(rhs_name, rhs_ty, _)) =>
-                lhs_name == rhs_name && lhs_ty == rhs_ty,
+            (Identifier(lhs_name, lhs_ty, _), Identifier(rhs_name, rhs_ty, _)) => {
+                lhs_name == rhs_name && lhs_ty == rhs_ty
+            }
             (Type(lhs_ct), Type(rhs_ct)) => lhs_ct == rhs_ct,
             (Identifier(_, _, _), _) | (_, Identifier(_, _, _)) => false,
         }
