@@ -3,13 +3,14 @@ use std::{cmp, fmt, hash};
 
 use fnv::{FnvHashMap, FnvHashSet};
 
-use printer::DisplayType;
-use scope::Scope;
 use socrates_ast::parsed::{ActiveType, TypeRef};
 use socrates_ast::parsed::{Formula, IdentifierType, MaybeTypedVariable, Term};
 use socrates_ast::{Span, Spanning};
 use socrates_errors::ErrorContext;
-use types::TypeStorage;
+
+use crate::printer::DisplayType;
+use crate::scope::Scope;
+use crate::types::TypeStorage;
 
 type GeneratorScope<'i> = Scope<ScopeData<'i>>;
 
@@ -68,7 +69,7 @@ pub fn type_check<'i>(
         return f;
     }
 
-    debug!(
+    log::debug!(
         "Initial constraints: \n{}",
         (*constraints)
             .constraints
@@ -81,7 +82,7 @@ pub fn type_check<'i>(
     merge_variable_definitions(&mut constraints, types, errors);
     remove_redundant_generics(&mut constraints);
 
-    debug!(
+    log::debug!(
         "Reduced constraints: \n{}",
         (*constraints)
             .constraints
@@ -93,7 +94,7 @@ pub fn type_check<'i>(
 
     let variable_bounds = generate_variable_bounds(&constraints, types);
 
-    debug!(
+    log::debug!(
         "Variables bounds: \n{}",
         variable_bounds
             .iter()
@@ -274,7 +275,7 @@ fn make_subscope<'i>(
 fn make_constraint_type_from_ref(
     type_ref: TypeRef,
     span: Span,
-    types: &TypeStorage,
+    types: &TypeStorage<'_>,
 ) -> ConstraintType {
     ConstraintType::Type(
         type_ref,
@@ -345,7 +346,7 @@ fn merge_variable_definitions<'i>(
 
         {
             let (c1, c2) = index_two_mut(&mut constraints, i1, i2);
-            trace!(
+            log::trace!(
                 "Conflicts: {}, {}",
                 DisplayType::new(c1, types),
                 DisplayType::new(c2, types)
@@ -357,14 +358,14 @@ fn merge_variable_definitions<'i>(
             match result {
                 UnificationResult::Error => break,
                 UnificationResult::NewConstraint(constraint) => {
-                    trace!(
+                    log::trace!(
                         "  => Adding constraint {}",
                         DisplayType::new(&constraint, types)
                     );
                     constraints.push(constraint);
                 }
                 UnificationResult::SubstituteGenerics(from, to) => {
-                    trace!("  => Substituting generics {} => {}", from, to);
+                    log::trace!("  => Substituting generics {} => {}", from, to);
                     substitute_generics(&mut constraints, from, to);
                 }
             }
@@ -373,14 +374,14 @@ fn merge_variable_definitions<'i>(
         match (c1_has_generics, c2_has_generics) {
             (true, true) => (),
             (true, false) => {
-                trace!(
+                log::trace!(
                     "  => Removing constraint {}",
                     DisplayType::new(&constraints[i2], types)
                 );
                 constraints.remove(i2);
             }
             (false, true) => {
-                trace!(
+                log::trace!(
                     "  => Removing constraint {}",
                     DisplayType::new(&constraints[i1], types)
                 );
@@ -396,7 +397,7 @@ fn merge_variable_definitions<'i>(
 
                 let remove_idx = if c1_is_subtype { i2 } else { i1 };
 
-                trace!(
+                log::trace!(
                     "  => Remove constraint {}",
                     DisplayType::new(&constraints[remove_idx], types)
                 );
@@ -406,7 +407,7 @@ fn merge_variable_definitions<'i>(
 
         let mut dedups = constraints.drain(..).collect::<FnvHashSet<_>>();
         constraints = dedups.drain().collect();
-        trace!(
+        log::trace!(
             "New constraints: \n{}",
             constraints
                 .iter()
@@ -419,7 +420,7 @@ fn merge_variable_definitions<'i>(
     cs.constraints = constraints.into_iter().collect();
 }
 
-fn substitute_generics(constraints: &mut Vec<Constraint>, from: usize, to: usize) {
+fn substitute_generics(constraints: &mut Vec<Constraint<'_>>, from: usize, to: usize) {
     constraints
         .iter_mut()
         .for_each(|c| c.substitute_generics(from, to));
@@ -437,7 +438,7 @@ enum UnificationResult<'i> {
 fn unify_types<'i>(
     lhs: &ConstraintType,
     rhs: &ConstraintType,
-    acc: &mut FnvHashSet<UnificationResult>,
+    acc: &mut FnvHashSet<UnificationResult<'_>>,
     types: &TypeStorage<'i>,
     errors: &mut ErrorContext<'i>,
 ) {
@@ -477,7 +478,9 @@ fn unify_types<'i>(
     }
 }
 
-fn find_conflicting_identifier_constraints(constraints: &[Constraint]) -> Option<(usize, usize)> {
+fn find_conflicting_identifier_constraints(
+    constraints: &[Constraint<'_>],
+) -> Option<(usize, usize)> {
     let mut start_idx = 0;
     while constraints.len() >= 2 && start_idx <= constraints.len() - 2 {
         let (first_idx, first_var) = constraints[start_idx..]
@@ -533,16 +536,18 @@ fn index_two_mut<T>(l: &mut [T], i1: usize, i2: usize) -> (&mut T, &mut T) {
     (&mut first[i1], &mut rest[i2 - i1 - 1])
 }
 
-fn remove_redundant_generics(constraints: &mut ConstraintStorage) {
+fn remove_redundant_generics(constraints: &mut ConstraintStorage<'_>) {
     while let Some((from, to)) = find_redundant_generics_constraint(constraints) {
-        trace!("Substituting redundant generics: {} => {}", from, to);
+        log::trace!("Substituting redundant generics: {} => {}", from, to);
         let mut cs = constraints.constraints.drain().collect();
         substitute_generics(&mut cs, from, to);
         constraints.constraints = cs.drain(..).collect();
     }
 }
 
-fn find_redundant_generics_constraint(constraints: &ConstraintStorage) -> Option<(usize, usize)> {
+fn find_redundant_generics_constraint(
+    constraints: &ConstraintStorage<'_>,
+) -> Option<(usize, usize)> {
     constraints
         .constraints
         .iter()
@@ -568,7 +573,7 @@ fn generate_variable_bounds<'i>(
 
 fn find_lower_bound<'i>(
     ty: &ConstraintType,
-    constraints: &ConstraintStorage,
+    constraints: &ConstraintStorage<'_>,
     types: &TypeStorage<'i>,
 ) -> ConstraintType {
     match ty {
@@ -597,7 +602,7 @@ fn find_lower_bound<'i>(
 }
 
 fn assign_quantifier_variables(
-    f: &mut Spanning<Formula>,
+    f: &mut Spanning<Formula<'_>>,
     bounds: &FnvHashMap<(u32, u32), ActiveType>,
 ) {
     match &mut f.inner {
@@ -649,10 +654,10 @@ impl<'i> ConstraintStorage<'i> {
     fn push(&mut self, lhs: ConstraintLHS<'i>, rhs: ConstraintType) {
         if lhs != rhs {
             let c = Constraint { lhs, rhs };
-            trace!("Adding constraint: {:?}", c);
+            log::trace!("Adding constraint: {:?}", c);
             self.constraints.insert(c);
         } else {
-            trace!("Ignoring constraint for identical sides: {:?}", lhs);
+            log::trace!("Ignoring constraint for identical sides: {:?}", lhs);
         }
     }
 
@@ -775,13 +780,13 @@ impl<'i> From<ConstraintType> for ConstraintLHS<'i> {
 }
 
 impl<'i> fmt::Display for DisplayType<'i, TypeRef> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.storage.type_name(*self.ty))
     }
 }
 
 impl<'i> fmt::Display for DisplayType<'i, ConstraintType> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.ty {
             ConstraintType::GenericParam(i) => write!(f, "${}", i),
             ConstraintType::Type(tr, p, _) => {
@@ -800,7 +805,7 @@ impl<'i> fmt::Display for DisplayType<'i, ConstraintType> {
 }
 
 impl<'i> fmt::Display for DisplayType<'i, ConstraintLHS<'i>> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.ty {
             ConstraintLHS::Identifier(name, IdentifierType::Unresolved, _) => {
                 write!(f, "?{}", name)
@@ -817,7 +822,7 @@ impl<'i> fmt::Display for DisplayType<'i, ConstraintLHS<'i>> {
 }
 
 impl<'i> fmt::Display for DisplayType<'i, Constraint<'i>> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} <= {}",
@@ -828,7 +833,7 @@ impl<'i> fmt::Display for DisplayType<'i, Constraint<'i>> {
 }
 
 impl fmt::Debug for ConstraintType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstraintType::GenericParam(i) => write!(f, "$_T{}", i),
             ConstraintType::Type(tr, p, _) => {
@@ -844,7 +849,7 @@ impl fmt::Debug for ConstraintType {
 }
 
 impl<'i> fmt::Debug for ConstraintLHS<'i> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstraintLHS::Identifier(name, IdentifierType::Unresolved, _) => {
                 write!(f, "({:?}, ???)", name)
@@ -861,7 +866,7 @@ impl<'i> fmt::Debug for ConstraintLHS<'i> {
 }
 
 impl<'i> fmt::Debug for Constraint<'i> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?} <= {:?}", self.lhs, self.rhs)
     }
 }

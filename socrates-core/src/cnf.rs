@@ -1,4 +1,4 @@
-use gaf::GAFIndex;
+use crate::gaf::GAFIndex;
 
 pub type Literal = (bool, GAFIndex);
 pub type Clause = Vec<Literal>;
@@ -11,9 +11,7 @@ pub struct CNFFormula {
 impl CNFFormula {
     pub fn new_unit(lit: Literal) -> Self {
         CNFFormula {
-            clauses: vec![
-                vec![lit],
-            ],
+            clauses: vec![vec![lit]],
         }
     }
 
@@ -22,7 +20,9 @@ impl CNFFormula {
     }
 
     pub fn new_false() -> Self {
-        CNFFormula { clauses: vec![ vec![] ] }
+        CNFFormula {
+            clauses: vec![vec![]],
+        }
     }
 
     pub fn extend_conjunction(&mut self, other: CNFFormula) {

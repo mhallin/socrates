@@ -1,6 +1,6 @@
 use env_logger;
 
-use tests::{Context, new_tal_context};
+use super::{Context, new_tal_context};
 
 #[test]
 fn infer1() {

@@ -1,11 +1,8 @@
-use tests::new_tal_context;
+use crate::gaf::GroundTerm;
 
-use gaf::GroundTerm;
+use super::new_tal_context;
 
-fn assert_instances(
-    expected: &[GroundTerm],
-    mut actual: Vec<GroundTerm>,
-) {
+fn assert_instances(expected: &[GroundTerm<'_>], mut actual: Vec<GroundTerm<'_>>) {
     let mut expected = expected.to_vec();
 
     expected.sort();
@@ -19,8 +16,12 @@ fn iterate_interpreted() {
     let ctx = new_tal_context();
 
     assert_instances(
-        &[GroundTerm::new_ident("false"), GroundTerm::new_ident("true")],
-        ctx.types.instance_iter(ctx.get_type("bool")));
+        &[
+            GroundTerm::new_ident("false"),
+            GroundTerm::new_ident("true"),
+        ],
+        ctx.types.instance_iter(ctx.get_type("bool")),
+    );
 }
 
 #[test]
@@ -34,16 +35,20 @@ fn iterate_supertype() {
             GroundTerm::new_ident("l1"),
             GroundTerm::new_ident("u1"),
         ],
-        ctx.types.instance_iter(ctx.get_type("value")));
+        ctx.types.instance_iter(ctx.get_type("value")),
+    );
 }
 
 #[test]
 fn iterate_number() {
     let mut ctx = new_tal_context();
 
-    ctx.exec_unit(r"
+    ctx.exec_unit(
+        r"
 :integertype t [3..9];
-").expect("Could not set up integer type");
+",
+    )
+    .expect("Could not set up integer type");
 
     assert_instances(
         &[
@@ -55,5 +60,6 @@ fn iterate_number() {
             GroundTerm::Number(8),
             GroundTerm::Number(9),
         ],
-        ctx.types.instance_iter(ctx.get_type("t")));
+        ctx.types.instance_iter(ctx.get_type("t")),
+    );
 }

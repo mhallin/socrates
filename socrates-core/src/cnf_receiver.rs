@@ -3,8 +3,8 @@ use std::io::{Seek, SeekFrom, Write};
 
 use failure::Error;
 
-use gaf::GAFIndex;
-use cnf::Literal;
+use crate::cnf::Literal;
+use crate::gaf::GAFIndex;
 
 pub trait CNFReceiver {
     type ProblemResult;
@@ -36,7 +36,7 @@ impl CNFReceiver for DIMACSReceiver {
     type ProblemResult = ();
 
     fn receive(&mut self, lits: &[Literal]) -> Result<(), Error> {
-        trace!("Writing clause to DIMACS: {:?}", lits);
+        log::trace!("Writing clause to DIMACS: {:?}", lits);
         for (sign, idx) in lits {
             let sign = if *sign { 1i32 } else { -1 };
             write!(self.target, "{} ", sign * (idx.0 as i32 + 1))?;
@@ -53,7 +53,12 @@ impl CNFReceiver for DIMACSReceiver {
 
     fn finish(mut self) -> Result<(), Error> {
         self.target.seek(SeekFrom::Start(0))?;
-        write!(self.target, "p cnf {} {}", self.max_literal.0 + 1, self.clause_count)?;
+        write!(
+            self.target,
+            "p cnf {} {}",
+            self.max_literal.0 + 1,
+            self.clause_count
+        )?;
         Ok(())
     }
 }

@@ -2,16 +2,15 @@ use std::error;
 use std::fmt;
 
 use lalrpop_util::ParseError;
-
 use socrates_errors::CompilerError;
 
-use parser;
+use crate::parser;
 
 #[derive(Debug)]
 pub struct WrappedLalrpopError<'input>(pub ParseError<usize, parser::Token<'input>, &'static str>);
 
 impl<'input> fmt::Display for WrappedLalrpopError<'input> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             ParseError::InvalidToken { .. } => write!(fmt, "Invalid token"),
             ParseError::UnrecognizedToken {

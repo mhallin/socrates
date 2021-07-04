@@ -33,7 +33,7 @@ impl<T> Spanning<T> {
     pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> Spanning<U> {
         Spanning {
             pos: self.pos,
-            inner: f(self.inner)
+            inner: f(self.inner),
         }
     }
 }

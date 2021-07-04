@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use fnv::FnvHashMap;
 
@@ -39,9 +39,7 @@ impl<'i> GAFStorage<'i> {
     pub fn reify(&self, gaf: GAF<'i>) -> GAFIndex {
         let mut inner = self.inner.borrow_mut();
         let next_index = GAFIndex(inner.gaf_lookup.len() as u32);
-        *inner.gaf_lookup
-            .entry(gaf)
-            .or_insert(next_index)
+        *inner.gaf_lookup.entry(gaf).or_insert(next_index)
     }
 
     pub fn next_slack(&self) -> GAFIndex {

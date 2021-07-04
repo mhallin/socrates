@@ -1,7 +1,4 @@
-#[macro_use] extern crate lalrpop_util;
-
-extern crate socrates_ast;
-extern crate socrates_errors;
+use lalrpop_util::lalrpop_mod;
 
 mod parse_error;
 
@@ -9,5 +6,5 @@ lalrpop_mod!(
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::all, unused_parens))] parser
 );
 
-pub use parser::{DocumentParser, SingleDelimitedItemParser};
-pub use parse_error::WrappedLalrpopError;
+pub use crate::parser::{DocumentParser, SingleDelimitedItemParser};
+pub use crate::parse_error::WrappedLalrpopError;

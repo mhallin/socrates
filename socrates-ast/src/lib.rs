@@ -3,5 +3,4 @@ pub mod simple;
 
 mod position;
 
-pub use position::{Spanning, Span};
-
+pub use crate::position::{Span, Spanning};

@@ -1,13 +1,14 @@
 use std::fmt;
 
-use failure::Error;
+use failure::{Error, format_err};
 use fnv::FnvHashMap;
 
-use gaf::GroundTerm;
-use printer::DisplayType;
 use socrates_ast::parsed::{ActiveType, TypeRef, TypeSpec};
 use socrates_ast::Spanning;
 use socrates_errors::ErrorContext;
+
+use crate::gaf::GroundTerm;
+use crate::printer::DisplayType;
 
 #[derive(Debug)]
 enum Type<'i> {
@@ -576,7 +577,7 @@ impl<'i> Predicate<'i> {
 }
 
 impl<'i> fmt::Display for DisplayType<'i, ActiveType> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.ty {
             ActiveType::GenericParam { index } => write!(f, "${}", index),
             ActiveType::Ref { to, params } => {

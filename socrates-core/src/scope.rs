@@ -1,4 +1,4 @@
-use std::sync::{Arc, atomic::AtomicUsize, atomic::Ordering};
+use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc};
 
 pub struct Scope<T> {
     pub self_index: usize,

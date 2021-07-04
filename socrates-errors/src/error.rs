@@ -2,7 +2,9 @@ use std::{error, fmt};
 
 pub trait CompilerError: error::Error {
     fn location(&self) -> Option<(usize, usize)>;
-    fn note(&self) -> Option<String> { None }
+    fn note(&self) -> Option<String> {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -32,11 +34,13 @@ impl error::Error for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.message)
     }
 }
 
 impl CompilerError for Error {
-    fn location(&self) -> Option<(usize, usize)> { Some(self.pos) }
+    fn location(&self) -> Option<(usize, usize)> {
+        Some(self.pos)
+    }
 }

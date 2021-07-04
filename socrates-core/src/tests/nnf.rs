@@ -1,11 +1,12 @@
-use tests::Context;
-
-use socrates_ast::parsed::{ActiveType::*, Quantifier::*, IdentifierType, BinaryRelationOperator};
+use socrates_ast::parsed::{ActiveType::*, BinaryRelationOperator, IdentifierType, Quantifier::*};
 use socrates_ast::simple::{Formula, Formula::*, Term::*};
+
+use super::Context;
 
 fn new_simple_context<'i>() -> Context<'i> {
     let mut ctx = Context::new();
-    ctx.exec_unit(r"
+    ctx.exec_unit(
+        r"
 :type v;
 :instances v u {a,b,c};
 
@@ -13,43 +14,29 @@ fn new_simple_context<'i>() -> Context<'i> {
 :predicate Q();
 
 :predicate R(v);
-    ").expect("Could not create basic types");
+    ",
+    )
+    .expect("Could not create basic types");
 
     ctx
 }
 
-fn assert_formula_eq<'i>(
-    ctx: &mut Context<'i>,
-    source: &'i str,
-    expected: &Formula<'i>,
-) {
-    let parsed = ctx.exec(source)
-        .expect("Could not parse test source");
-    
-    assert_eq!(
-        expected,
-        &parsed,
-    );
+fn assert_formula_eq<'i>(ctx: &mut Context<'i>, source: &'i str, expected: &Formula<'i>) {
+    let parsed = ctx.exec(source).expect("Could not parse test source");
+
+    assert_eq!(expected, &parsed,);
 }
 
 #[test]
 fn test_positive_atom() {
     let mut ctx = new_simple_context();
-    assert_formula_eq(
-        &mut ctx,
-        "P();",
-        &Predicate(true, "P", vec![]),
-    );
+    assert_formula_eq(&mut ctx, "P();", &Predicate(true, "P", vec![]));
 }
 
 #[test]
 fn test_negative_atom() {
     let mut ctx = new_simple_context();
-    assert_formula_eq(
-        &mut ctx,
-        "~P();",
-        &Predicate(false, "P", vec![]),
-    );
+    assert_formula_eq(&mut ctx, "~P();", &Predicate(false, "P", vec![]));
 }
 
 #[test]
@@ -152,10 +139,18 @@ fn test_universal_quantifier() {
         &Quantified(
             Universal,
             0,
-            vec![("x", Ref { to: vt, params: vec![] })],
-            Box::new(Predicate(true, "R", vec![
-                Identifier("x", IdentifierType::Variable(0, 0)),
-            ])),
+            vec![(
+                "x",
+                Ref {
+                    to: vt,
+                    params: vec![],
+                },
+            )],
+            Box::new(Predicate(
+                true,
+                "R",
+                vec![Identifier("x", IdentifierType::Variable(0, 0))],
+            )),
         ),
     );
 }
@@ -170,10 +165,18 @@ fn test_negated_universal_quantifier() {
         &Quantified(
             Existential,
             0,
-            vec![("x", Ref { to: vt, params: vec![] })],
-            Box::new(Predicate(false, "R", vec![
-                Identifier("x", IdentifierType::Variable(0, 0)),
-            ])),
+            vec![(
+                "x",
+                Ref {
+                    to: vt,
+                    params: vec![],
+                },
+            )],
+            Box::new(Predicate(
+                false,
+                "R",
+                vec![Identifier("x", IdentifierType::Variable(0, 0))],
+            )),
         ),
     );
 }
@@ -188,10 +191,18 @@ fn test_existential_quantifier() {
         &Quantified(
             Existential,
             0,
-            vec![("x", Ref { to: vt, params: vec![] })],
-            Box::new(Predicate(true, "R", vec![
-                Identifier("x", IdentifierType::Variable(0, 0)),
-            ])),
+            vec![(
+                "x",
+                Ref {
+                    to: vt,
+                    params: vec![],
+                },
+            )],
+            Box::new(Predicate(
+                true,
+                "R",
+                vec![Identifier("x", IdentifierType::Variable(0, 0))],
+            )),
         ),
     );
 }
@@ -206,10 +217,18 @@ fn test_negated_existential_quantifier() {
         &Quantified(
             Universal,
             0,
-            vec![("x", Ref { to: vt, params: vec![] })],
-            Box::new(Predicate(false, "R", vec![
-                Identifier("x", IdentifierType::Variable(0, 0)),
-            ])),
+            vec![(
+                "x",
+                Ref {
+                    to: vt,
+                    params: vec![],
+                },
+            )],
+            Box::new(Predicate(
+                false,
+                "R",
+                vec![Identifier("x", IdentifierType::Variable(0, 0))],
+            )),
         ),
     );
 }
@@ -241,4 +260,3 @@ fn test_binary_relation() {
         ),
     );
 }
-
