@@ -1,5 +1,3 @@
-use env_logger;
-
 use super::{Context, new_tal_context};
 
 #[test]

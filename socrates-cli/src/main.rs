@@ -1,8 +1,3 @@
-use env_logger;
-use failure;
-use isatty;
-use rustyline;
-
 use std::fs::File;
 use std::io::{stdin, stdout, Read};
 

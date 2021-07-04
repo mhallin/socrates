@@ -14,14 +14,15 @@ impl<'input> fmt::Display for WrappedLalrpopError<'input> {
         match &self.0 {
             ParseError::InvalidToken { .. } => write!(fmt, "Invalid token"),
             ParseError::UnrecognizedToken {
-                token: Some((_, t, _)),
-                ..
+                token: (_, t, _), ..
             } => write!(fmt, "Unexpected token `{}`", t),
-            ParseError::UnrecognizedToken { token: None, .. } => write!(fmt, "Unexpected token"),
             ParseError::ExtraToken {
                 token: (_, t, _), ..
             } => write!(fmt, "Unexpected token `{}`", t),
             ParseError::User { error } => write!(fmt, "{}", error),
+            ParseError::UnrecognizedEOF { .. } => {
+                write!(fmt, "Unexpected end of file")
+            }
         }
     }
 }
@@ -37,14 +38,14 @@ impl<'input> CompilerError for WrappedLalrpopError<'input> {
         match &self.0 {
             ParseError::InvalidToken { location } => Some((*location, *location + 1)),
             ParseError::UnrecognizedToken {
-                token: Some((start, _, end)),
+                token: (start, _, end),
                 ..
             } => Some((*start, *end)),
-            ParseError::UnrecognizedToken { token: None, .. } => None,
             ParseError::ExtraToken {
                 token: (start, _, end),
             } => Some((*start, *end)),
             ParseError::User { .. } => None,
+            ParseError::UnrecognizedEOF { location, .. } => Some((*location, *location + 1)),
         }
     }
 

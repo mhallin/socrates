@@ -13,7 +13,7 @@ use socrates_ast::parsed::{
 };
 use socrates_errors::ErrorContext;
 
-use parse_error::WrappedLalrpopError;
+use crate::WrappedLalrpopError;
 
 grammar<'err>(errors: &'err mut ErrorContext<'input>);
 

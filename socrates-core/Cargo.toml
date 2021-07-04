@@ -11,8 +11,8 @@ socrates-errors = { path = "../socrates-errors" }
 failure = "0.1"
 log = "0.4"
 fnv = "1.0.6"
-itertools = "0.7.8"
+itertools = "0.10.1"
 
 [dev-dependencies]
-env_logger = "0.5"
+env_logger = "0.8.4"
 socrates-parser = { path = "../socrates-parser" }
