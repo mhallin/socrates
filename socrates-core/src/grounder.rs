@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use failure::Error;
 use itertools::Itertools;
 
+use socrates_errors::eyre::Error;
 use socrates_ast::parsed::ActiveType;
 use socrates_ast::parsed::{BinaryRelationOperator, IdentifierType, Quantifier};
 use socrates_ast::simple::{Formula, Term};

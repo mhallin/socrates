@@ -1,11 +1,13 @@
 use std::io::stderr;
 
-use failure::{format_err, Error};
 use fnv::FnvHashMap;
 
 use socrates_ast::parsed::{ActiveType, TypeRef};
 use socrates_ast::simple::Formula;
-use socrates_errors::ErrorContext;
+use socrates_errors::{
+    eyre::{format_err, Error},
+    ErrorContext,
+};
 use socrates_parser::{DocumentParser, WrappedLalrpopError};
 
 use crate::grounder::Emitter;

@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 
-use failure::Error;
+use socrates_errors::eyre::Error;
 
 use crate::cnf::Literal;
 use crate::gaf::GAFIndex;

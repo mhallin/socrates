@@ -1,10 +1,9 @@
 use std::fs::File;
 use std::io::{stdin, stdout, Read};
 
-use failure::Error;
 use fnv::FnvHashMap;
 
-use socrates_errors::ErrorContext;
+use socrates_errors::{eyre::Error, ErrorContext};
 use socrates_parser::{DocumentParser, SingleDelimitedItemParser, WrappedLalrpopError};
 
 use socrates_core::{
@@ -53,7 +52,7 @@ fn main() -> Result<(), Error> {
     }
 }
 
-fn run_repl() -> Result<(), failure::Error> {
+fn run_repl() -> Result<(), Error> {
     let mut editor: rustyline::Editor<()> = rustyline::Editor::new();
 
     println!("Socrates, a multi-purpose first-order reasoning tool");

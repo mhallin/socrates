@@ -1,7 +1,7 @@
 use std::io;
 
 use colored::Colorize;
-use failure::format_err;
+use eyre::format_err;
 
 use crate::{CompilerError, Error};
 
@@ -25,10 +25,10 @@ impl<'input> ErrorContext<'input> {
         }
     }
 
-    pub fn block_exec<U, F: FnOnce(&mut Self) -> Result<U, failure::Error>>(
+    pub fn block_exec<U, F: FnOnce(&mut Self) -> Result<U, eyre::Error>>(
         &mut self,
         f: F,
-    ) -> Result<U, failure::Error> {
+    ) -> Result<U, eyre::Error> {
         let error_count = self.errors.len();
         let value = f(self);
 

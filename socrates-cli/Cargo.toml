@@ -13,6 +13,5 @@ socrates-parser = { path = "../socrates-parser" }
 env_logger = "0.5"
 rustyline = "1.0"
 isatty = "0.1"
-failure = "0.1"
 log = "0.4"
 fnv = "1.0"

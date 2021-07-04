@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 use socrates_ast::parsed::{Definition, DocumentItem};
 use socrates_ast::Spanning;
-use socrates_errors::ErrorContext;
+use socrates_errors::{eyre::Error, ErrorContext};
 
 pub fn handle_item<'i, E: grounder::Emitter<'i>, S: ::std::hash::BuildHasher>(
     emitter: &mut E,
@@ -96,7 +96,7 @@ fn emit_formula<'i, E: grounder::Emitter<'i>>(
     formula: Spanning<socrates_ast::parsed::Formula<'i>>,
     storage: &types::TypeStorage<'i>,
     errors: &mut ErrorContext<'i>,
-) -> Result<(), failure::Error> {
+) -> Result<(), Error> {
     let formula = errors.block_exec(|errors| {
         Ok(ident_resolver::resolve_identifiers(
             formula, storage, errors,

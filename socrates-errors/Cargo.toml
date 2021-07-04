@@ -6,5 +6,5 @@ edition = "2018"
 
 [dependencies]
 log = { version = "0.4", features = ["release_max_level_warn"] }
-failure = "0.1"
+eyre = "0.6.5"
 colored = "2.0.0"

@@ -1,11 +1,13 @@
 use std::fmt;
 
-use failure::{Error, format_err};
 use fnv::FnvHashMap;
 
 use socrates_ast::parsed::{ActiveType, TypeRef, TypeSpec};
 use socrates_ast::Spanning;
-use socrates_errors::ErrorContext;
+use socrates_errors::{
+    eyre::{format_err, Error},
+    ErrorContext,
+};
 
 use crate::gaf::GroundTerm;
 use crate::printer::DisplayType;
